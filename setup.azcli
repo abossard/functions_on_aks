@@ -1,0 +1,29 @@
+# PREP Register KEDA Extension
+az extension add --upgrade --name aks-preview
+az feature register --name AKS-KedaPreview --namespace Microsoft.ContainerService
+# wait 15mins :-)
+# check if status is: Registered. If not, wait a bit longer
+az feature list -o table --query "[?contains(name, 'Microsoft.ContainerService/AKS-KedaPreview')].{Name:name,State:properties.state}"
+# Refresh the ContainerService
+az provider register --namespace Microsoft.ContainerService
+
+
+# SETUP
+PREFIX=anbofun
+RG=${PREFIX}-rg
+L=westeurope
+ACR=${PREFIX}acr
+AKS=${PREFIX}aks
+APP=${PREFIX}-fun
+IMAGE=${ACR}.azurecr.io/${APP}:latest
+# create aks cluster
+az group create --location $L --name $RG
+az acr create --name $ACR --resource-group $RG --sku Basic --admin-enabled false
+az acr login --name $ACR
+az aks create --name $AKS --resource-group $RG --node-count 1 --generate-ssh-keys --location $L  --attach-acr $ACR --enable-keda
+#if an existing cluster needs an update: az aks update --resource-group $RG --name $AKS --enable-keda 
+az aks show -g $RG --name $AKS --query "workloadAutoScalerProfile.keda.enabled"
+az aks get-credentials --resource-group $RG --name $AKS
+kubectl get pods -n kube-system
+docker build -t $IMAGE src
+docker push $IMAGE
